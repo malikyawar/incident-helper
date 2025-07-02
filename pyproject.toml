@@ -1,0 +1,18 @@
+[project]
+name = "incident-helper"
+version = "0.1.0"
+description = "AI-powered CLI tool for SREs and DevOps"
+authors = [{ name = "Muhammad Yawar Malik", email = "malikyawar@icloud.com" }]
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+dependencies = [
+    "typer[all]",
+]
+
+[project.scripts]
+incident-helper = "incident_helper.cli:start"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
