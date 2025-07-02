@@ -2,7 +2,7 @@
 name = "incident-helper"
 version = "0.1.0"
 description = "AI-powered CLI tool for SREs and DevOps"
-authors = [{ name = "Muhammad Yawar Malik", email = "malikyawar@icloud.com" }]
+authors = [{ name = "Muhammad Yawar Malik", email = "mmalikyawar@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
