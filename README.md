@@ -39,7 +39,7 @@ Triage incidents, analyze logs, debug systems, and execute diagnostics with AI a
 
 ### Install
 ```bash
-git clone https://github.com/yourname/incident-helper.git
+git clone https://github.com/malikyawar/incident-helper.git
 cd incident-helper
 pip install -e .
 
