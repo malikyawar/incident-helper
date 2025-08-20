@@ -56,8 +56,21 @@ class SystemResolver:
     def run_command(self, command: str, timeout: int = 30) -> Dict[str, Any]:
         """Execute system command safely"""
         try:
+            # Import and use sanitization
+            from incident_helper.utils import sanitize_command
+            
+            # Sanitize the command first
+            try:
+                sanitized_command = sanitize_command(command)
+            except ValueError as e:
+                return {
+                    "command": command,
+                    "error": str(e),
+                    "success": False
+                }
+            
             result = subprocess.run(
-                command.split(),
+                sanitized_command.split(),
                 capture_output=True,
                 text=True,
                 timeout=timeout

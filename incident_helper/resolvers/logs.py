@@ -51,21 +51,28 @@ class LogResolver:
     def tail_log(self, log_path: str, lines: int = 50) -> Dict[str, Any]:
         """Get last N lines from a log file"""
         try:
-            if not os.path.exists(log_path):
-                return {"error": f"Log file not found: {log_path}"}
+            # Validate path for security
+            from incident_helper.utils import validate_file_path
+            try:
+                validated_path = validate_file_path(log_path, ['/var/log/', '/tmp/', '/opt/'])
+            except ValueError as e:
+                return {"error": f"Invalid log path: {e}"}
             
-            if not os.access(log_path, os.R_OK):
-                return {"error": f"Cannot read log file: {log_path}"}
+            if not os.path.exists(validated_path):
+                return {"error": f"Log file not found: {validated_path}"}
+            
+            if not os.access(validated_path, os.R_OK):
+                return {"error": f"Cannot read log file: {validated_path}"}
             
             result = subprocess.run(
-                ["tail", "-n", str(lines), log_path],
+                ["tail", "-n", str(lines), validated_path],
                 capture_output=True,
                 text=True,
                 timeout=10
             )
             
             return {
-                "path": log_path,
+                "path": validated_path,
                 "lines": result.stdout.split('\n'),
                 "line_count": len(result.stdout.split('\n')),
                 "success": result.returncode == 0
@@ -87,23 +94,24 @@ class LogResolver:
             
             grep_args.extend(["-n", pattern, log_path])
             
-            if lines > 0:
-                grep_args = ["head", "-n", str(lines)] + ["|"] + grep_args
-                # Use shell=True for pipe
-                result = subprocess.run(
-                    f"grep {'-i' if not case_sensitive else ''} -n '{pattern}' '{log_path}' | head -n {lines}",
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=15
-                )
-            else:
-                result = subprocess.run(
-                    grep_args,
-                    capture_output=True,
-                    text=True,
-                    timeout=15
-                )
+            # Use safe subprocess without shell=True
+            grep_cmd = ["grep"]
+            if not case_sensitive:
+                grep_cmd.append("-i")
+            grep_cmd.extend(["-n", pattern, log_path])
+            
+            result = subprocess.run(
+                grep_cmd,
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
+            
+            # If we need to limit lines, process the output
+            if lines > 0 and result.returncode == 0:
+                output_lines = result.stdout.strip().split('\n')
+                if len(output_lines) > lines:
+                    result.stdout = '\n'.join(output_lines[:lines])
             
             matches = result.stdout.strip().split('\n') if result.stdout.strip() else []
             

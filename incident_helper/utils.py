@@ -1,5 +1,6 @@
 import re
 import json
+import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 
@@ -71,22 +72,66 @@ def parse_log_timestamp(log_line: str) -> Optional[datetime]:
 
 def sanitize_command(command: str) -> str:
     """Sanitize command for safe execution"""
-    # Remove dangerous characters and commands
+    if not command or not isinstance(command, str):
+        raise ValueError("Invalid command: must be a non-empty string")
+    
+    command = command.strip()
+    
+    # Block dangerous characters
+    dangerous_chars = [';', '&&', '||', '|', '>', '>>', '<', '`', '$', '(', ')']
+    for char in dangerous_chars:
+        if char in command:
+            raise ValueError(f"Dangerous character '{char}' detected in command: {command}")
+    
+    # Block dangerous commands and patterns
     dangerous_patterns = [
-        r'rm\s+-rf\s+/',
+        r'rm\s+-rf\s*/',
+        r'rm\s+-rf\s+\*',
         r'dd\s+if=',
         r'mkfs\.',
         r'fdisk',
+        r'format',
         r'>\s*/dev/',
-        r'curl.*\|\s*sh',
-        r'wget.*\|\s*sh'
+        r'curl.*sh',
+        r'wget.*sh',
+        r'bash\s*-c',
+        r'sh\s*-c',
+        r'eval\s+',
+        r'exec\s+',
+        r'sudo\s+rm',
+        r'chmod\s+777',
+        r'chown\s+.*:.*\s+/',
+        r'://',  # Block URLs
+        r'\.\./',  # Block path traversal
     ]
     
     for pattern in dangerous_patterns:
         if re.search(pattern, command, re.IGNORECASE):
-            raise ValueError(f"Potentially dangerous command detected: {command}")
+            raise ValueError(f"Potentially dangerous command pattern detected: {command}")
     
-    return command.strip()
+    # Whitelist of allowed commands (basic diagnostic commands only)
+    allowed_commands = [
+        'ls', 'cat', 'tail', 'head', 'grep', 'find', 'ps', 'top', 'htop',
+        'df', 'du', 'free', 'uptime', 'whoami', 'id', 'date', 'uname',
+        'systemctl', 'journalctl', 'service', 'netstat', 'ss', 'ping',
+        'traceroute', 'nslookup', 'dig', 'curl', 'wget', 'ssh', 'scp',
+        'awk', 'sed', 'sort', 'uniq', 'wc', 'which', 'whereis',
+        'lsof', 'iostat', 'vmstat', 'sar', 'tcpdump', 'iptables'
+    ]
+    
+    # Extract the base command (first word)
+    base_command = command.split()[0] if command.split() else ""
+    
+    # Remove common prefixes
+    if base_command.startswith('./'):
+        base_command = base_command[2:]
+    elif base_command.startswith('/'):
+        base_command = os.path.basename(base_command)
+    
+    if base_command not in allowed_commands:
+        raise ValueError(f"Command '{base_command}' is not in the allowed list for security reasons")
+    
+    return command
 
 def parse_service_status(status_output: str) -> Dict[str, Any]:
     """Parse systemctl status output"""
@@ -175,10 +220,30 @@ def validate_log_path(path: str) -> bool:
     """Validate if a path looks like a valid log file"""
     import os
     
-    if not os.path.exists(path):
+    if not path or not isinstance(path, str):
         return False
     
-    if not os.path.isfile(path):
+    # Prevent path traversal attacks
+    if '..' in path or path.startswith('/'):
+        # Only allow absolute paths in safe directories
+        safe_dirs = ['/var/log/', '/tmp/', '/opt/']
+        if not any(path.startswith(safe_dir) for safe_dir in safe_dirs):
+            return False
+    
+    # Resolve path to prevent traversal
+    try:
+        resolved_path = os.path.realpath(path)
+        # Ensure resolved path is still in safe directories
+        safe_dirs = ['/var/log/', '/tmp/', '/opt/', os.getcwd()]
+        if not any(resolved_path.startswith(safe_dir) for safe_dir in safe_dirs):
+            return False
+    except:
+        return False
+    
+    if not os.path.exists(resolved_path):
+        return False
+    
+    if not os.path.isfile(resolved_path):
         return False
     
     # Check if it's a common log file location or extension
@@ -193,7 +258,34 @@ def validate_log_path(path: str) -> bool:
         '.err'
     ]
     
-    return any(indicator in path.lower() for indicator in log_indicators)
+    return any(indicator in resolved_path.lower() for indicator in log_indicators)
+
+def validate_file_path(path: str, allowed_dirs: List[str] = None) -> str:
+    """Validate and sanitize file paths to prevent path traversal"""
+    import os
+    
+    if not path or not isinstance(path, str):
+        raise ValueError("Invalid path: must be a non-empty string")
+    
+    # Default allowed directories
+    if allowed_dirs is None:
+        allowed_dirs = ['/var/log/', '/tmp/', '/opt/', os.getcwd()]
+    
+    # Prevent path traversal
+    if '..' in path:
+        raise ValueError("Path traversal detected: '..' not allowed")
+    
+    # Resolve the path
+    try:
+        resolved_path = os.path.realpath(path)
+    except Exception as e:
+        raise ValueError(f"Invalid path: {e}")
+    
+    # Check if resolved path is in allowed directories
+    if not any(resolved_path.startswith(allowed_dir) for allowed_dir in allowed_dirs):
+        raise ValueError(f"Path not in allowed directories: {resolved_path}")
+    
+    return resolved_path
 
 def extract_ip_addresses(text: str) -> List[str]:
     """Extract IP addresses from text"""

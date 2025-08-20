@@ -13,7 +13,7 @@ Thank you for your interest in contributing to Incident Helper! This guide will 
 
 1. **Fork and clone the repository**
 ```bash
-git clone https://github.com/yourusername/incident-helper.git
+git clone https://github.com/malikyawar/incident-helper.git
 cd incident-helper
 ```
 
