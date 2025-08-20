@@ -216,8 +216,11 @@ pytest tests/test_cli.py::test_quick_check_command
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
+<<<<<<< Updated upstream
 ## 🙋‍♂️ Support
 
 - **Issues**: [GitHub Issues](https://github.com/yourname/incident-helper/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/yourname/incident-helper/discussions)
 - **Documentation**: [Wiki](https://github.com/yourname/incident-helper/wiki)
+=======
+>>>>>>> Stashed changes
