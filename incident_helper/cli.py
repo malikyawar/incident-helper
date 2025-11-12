@@ -76,9 +76,10 @@ def start(
         try:
             # Get AI suggestion
             if llm:
-                prompt = build_diagnostic_prompt(ctx.get_summary(), ctx.data)
-                ai_response = llm.ask(prompt)
-                console.print(Panel(ai_response, title="🤖 AI Assistant", style="cyan"))
+                with console.status("[bold green]🤖 AI Assistant is thinking...[/]", spinner="dots"):
+                    prompt = build_diagnostic_prompt(ctx.get_summary(), ctx.data)
+                    ai_response = llm.ask(prompt)
+                    console.print(Panel(ai_response, title="🤖 AI Assistant", style="cyan"))
             else:
                 console.print(Panel("LLM not available. You can still use manual commands with '!' prefix.", title="⚠️ Manual Mode", style="yellow"))
             
@@ -88,7 +89,7 @@ def start(
             if suggested_commands and auto_execute:
                 for cmd in suggested_commands:
                     if Confirm.ask(f"Execute: {cmd}?"):
-                        _execute_command(cmd)
+                        _execute_command(cmd, auto_execute=auto_execute)
             
             # Get user input
             user_input = Prompt.ask("> ")
@@ -108,7 +109,7 @@ def start(
             elif user_input.startswith("!"):
                 # Execute command
                 command = user_input[1:].strip()
-                _execute_command(command)
+                _execute_command(command, auto_execute=auto_execute)
                 continue
             
             # Store user response
@@ -268,19 +269,34 @@ def _extract_commands(text: str) -> list:
     
     return commands
 
-def _execute_command(command: str):
-    """Execute a system command and store results"""
+def _execute_command(command: str, auto_execute: bool = False):
+    """Execute a system command with safety checks"""
+    from incident_helper.safety import check_command_safety
+    
+    # Check command safety
+    is_safe, warning = check_command_safety(command)
+    
+    if not is_safe:
+        console.print(f"{warning}", style="yellow")
+        if auto_execute:
+            console.print("🛑 Auto-execute disabled for this command.", style="red")
+        
+        confirm = input("Execute anyway? [y/N]: ").strip().lower()
+        if confirm != 'y':
+            console.print("❌ Command cancelled", style="red")
+            return None
+    
     console.print(f"⚡ Executing: {command}")
     
     result = system_resolver.run_command(command)
     ctx.add_command(command, result.get("stdout", ""), result.get("success", False))
     
     if result.get("success"):
-        console.print("✅ Command executed successfully")
+        console.print("✅ Command executed successfully", style="green")
         if result.get("stdout"):
             console.print(Syntax(result["stdout"], "bash", theme="monokai"))
     else:
-        console.print("❌ Command failed")
+        console.print("❌ Command failed", style="red")
         if result.get("stderr"):
             console.print(f"Error: {result['stderr']}", style="red")
 
